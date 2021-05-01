@@ -351,11 +351,11 @@ if(USE_PROFILER)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_PROFILER)
 
-if(USE_SUBGRAPH_EXECUTOR)
-    message(STATUS "Build with Subgraph Executor support...")
-  file(GLOB RUNTIME_SUBGRAPH_SRCS src/runtime/subgraph/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_SUBGRAPH_SRCS})
-endif(USE_SUBGRAPH_EXECUTOR)
+if(USE_PIPELINE_EXECUTOR)
+  message(STATUS "Build with Pipeline Executor support...")
+  file(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
+endif(USE_PIPELINE_EXECUTOR)
 
 # Module rules
 include(cmake/modules/VTA.cmake)
