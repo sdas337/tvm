@@ -82,7 +82,7 @@ def create(mods, mod_config):
 
         mods.append(mod)
 
-    submodule = PipelineModule(mods)
+    submodule = PipelineModule(mods, config)
     return submodule
 
 
@@ -105,7 +105,7 @@ class PipelineModule(object):
 
     """
 
-    def __init__(self, graph_modules):
+    def __init__(self, graph_modules, mod_config):
         mods = []
         for module in graph_modules:
             mods.append(module.module)
