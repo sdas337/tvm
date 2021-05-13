@@ -44,8 +44,8 @@ def run_modules(mod_configs, dev, target, dname, data):
         n = m.get_num_outputs()
         # parse mod_config and set current output as next mod input data
         mconfig = mod_configs[mod]
-        for output in mconfig["output"]:
-            output = mconfig["output"][output]
+        for output in mconfig["pipeline"]["output"]:
+            output = mconfig["pipeline"]["output"][output]
             output_data = m.get_output(output["output_indx"] - 1).asnumpy()
             for sub_mod in output["dependent"]:
                 dep = output["dependent"][sub_mod]
@@ -128,7 +128,9 @@ def run_pipeline(target):
     mconfig1["dev"] = target[1]
     # third output is final output, second output for mod2, third for  mod3
     # input
-    mconfig1["output"] = {
+    mconfig1["pipeline"] = {
+            "mod_indx":1,
+            "output":{
             "output_1":{"output_indx":1,
                         "dependent":{"mod_2":{"mod_indx":2, "input_indx":1}}}, 
             "output_2":{"output_indx":2,
@@ -136,26 +138,33 @@ def run_pipeline(target):
             "output_3":{"output_indx":3, 
                         "dependent":{"final":{"mod_indx":0, "input_indx":1}}},
                          }
+                    }
     mod_config[mods[0]] = mconfig1 
 
     mconfig2 = mconfig.copy()
     mconfig2["target"] = "llvm"
     mconfig2["dev"] = tvm.cpu(0)
-    mconfig2["output"] = {
+    mconfig2["pipeline"] = {
+            "mod_indx":2,
+            "output":{
             "output_1":{"output_indx":1,
                         "dependent":{"mod_3":{"mod_indx":3, "input_indx":1}},
                        }
                          }
+                     }
     mod_config[mods[1]] = mconfig2
 
     mconfig3 = mconfig.copy()
     mconfig3["target"] = "llvm"
     mconfig3["dev"] = tvm.cpu(0)
-    mconfig3["output"] = {
+    mconfig3["pipeline"] = {
+            "mod_indx":3,
+            "output":{
              "output_1":{"output_indx":1,
                           "dependent":{"final":{"mod_indx":0, "input_indx":2}}
                         }
                           }
+                      }
     mod_config[mods[2]] = mconfig3
 
     """

@@ -73,7 +73,7 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
    *  by storage_id. If not given, linked parameters are looked-up using an internal implementation,
    *  which is not compatible with RPCModules.
    */
-  void Init(const Array<tvm::runtime::Module>& modules);
+  void Init(const Array<tvm::runtime::Module>& modules, const std::string& pipeline_json);
 
   /*!
    * \brief set index-th input to the graph.

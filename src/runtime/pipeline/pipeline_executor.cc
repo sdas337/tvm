@@ -36,7 +36,9 @@ void SubGraphRuntime::Stop() { pipeline_stop(runtimes); }
  */
 void SubGraphRuntime::Run() { pipeline_run(runtimes); }
 
-void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules) {
+void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
+                           const std::string& pipeline_json) {
+  cout <<"SubGraphRuntime::Init" << pipeline_json <<endl;
   pipeline_init(modules, &runtimes);
   SetupStorage();
   return;
@@ -169,14 +171,15 @@ PackedFunc SubGraphRuntime::GetFunction(const std::string& name,
   }
 }
 
-Module PipelineRuntimeCreate(const Array<tvm::runtime::Module>& m) {
+Module PipelineRuntimeCreate(const Array<tvm::runtime::Module>& m,
+                             const std::string& pipeline_json) {
   auto exec = make_object<SubGraphRuntime>();
-  exec->Init(m);
+  exec->Init(m, pipeline_json);
   return Module(exec);
 }
 
 TVM_REGISTER_GLOBAL("tvm.pipeline_executor.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = PipelineRuntimeCreate(args[0]);
+  *rv = PipelineRuntimeCreate(args[0], args[1]);
 });
 }  // namespace runtime
 }  // namespace tvm
