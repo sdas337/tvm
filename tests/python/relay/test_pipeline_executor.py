@@ -34,41 +34,47 @@ def run_modules(mod_configs, dev, target, dname, data):
         m = graph_executor.GraphModule(lib["default"](dev))
         # Get input information
         mod_key = "mod_{}".format(indx)
-        if mod_input.has_key(mod_key):
+        if mod_key in mod_input:
             for input in mod_input[mod_key]:
-                m.set_input("data_{}".format(input["index"]), input["data"])
+                input = mod_input[mod_key][input]
+                m.set_input("data_{}".format(input["index"] - 1), input["data"])
         else:
             m.set_input(dname, data)
-
         m.run()
         n = m.get_num_outputs()
         # parse mod_config and set current output as next mod input data
         mconfig = mod_configs[mod]
         for output in mconfig["output"]:
-            output_data = m.get_output(output["output_indx"]).asnumpy()
-            for dep in output["dependent"]:
-                for mod in dep:
-                    if mod == "final":
-                        final_output[mod_input[mod]["index"]] = output_data
+            output = mconfig["output"][output]
+            output_data = m.get_output(output["output_indx"] - 1).asnumpy()
+            for sub_mod in output["dependent"]:
+                dep = output["dependent"][sub_mod]
+                # currnet output use as dependent input,
+                # input_indx indicate the input index number.
+                input_indx = dep["input_indx"]
+                if sub_mod == "final":
+                    final_output[input_indx] = output_data
+                else:
+                    if sub_mod in mod_input:
+                        mod_input[sub_mod][input_indx] = {"index":input_indx, "data":output_data}
                     else:
-                        mod_input[mod]["index"] = dep[mod]["input_indx"]
-                        mod_input[mod]["data"] = output_data
+                        mod_input[sub_mod] = {input_indx:{"index":input_indx, "data":output_data}}
         #output = m.get_output(0).asnumpy()
         #data = output
 
         indx = indx + 1
 
-    return output
+    return final_output
 
 
 def get_mannual_mod():
     mods = []
     dshape = (3, 3)
     data = relay.var("data", relay.TensorType(dshape, "float32"))
-    data_net1_output_1 = relay.var("data_1", relay.TensorType(dshape, "float32"))
-    data_net1_output_2 = relay.var("data_2", relay.TensorType(dshape, "float32"))
-    data_net2_output_1 = relay.var("data_1", relay.TensorType(dshape, "float32"))
-    mvalue1 = np.full((1), 5).astype("float32")
+    data_net1_output_1 = relay.var("data_0", relay.TensorType(dshape, "float32"))
+    data_net1_output_2 = relay.var("data_1", relay.TensorType(dshape, "float32"))
+    data_net2_output_1 = relay.var("data_0", relay.TensorType(dshape, "float32"))
+    mvalue1 = np.full((1), 1).astype("float32")
     mvalue2 = np.full((1), 2).astype("float32")
     mvalue3 = np.full((1), 3).astype("float32")
     mv1 = relay.Constant(tvm.nd.array(mvalue1))
@@ -85,7 +91,7 @@ def get_mannual_mod():
     net2 = relay.add(net2, mv3)
 
     # net3 use net2 output1 and net1 outpu2 as input
-    net3 = relay.multiply(data_net2_output_1, mv4)
+    net3 = relay.multiply(data_net2_output_1, mv3)
     net3 = relay.add(net3, data_net1_output_2)
 
     mods.append(tvm.IRModule.from_expr(relay.Function([data],
@@ -93,9 +99,9 @@ def get_mannual_mod():
                                                     net_output2,
                                                     net_output3])
         )))
-    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_1, data_net1_output_2],
+    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_1],
                                                        net2)))
-    mods.append(tvm.IRModule.from_expr(relay.Function([data_net2_output_1],
+    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_2, data_net2_output_1],
                                                        net3)))
 
     return mods, dshape
@@ -113,57 +119,44 @@ def run_pipeline(target):
     for i in range(len(mods) + 1):
         datas.append(np.full(dshape, 3 + i).astype("float32"))
 
-
+    # set configure
     indx = 0
-    if 0:
-        mconfig = {"target_host": None, "mod_name": "default", "build": None, "params": None}
-        mconfig1 = mconfig.copy()
-        mconfig1["target"] = target[0]
-        mconfig1["dev"] = target[1]
-        # third output is final output, second output for mod2, third for  mod3
-        # input
-        mconfig1["output"] = {
-                "output_1":{"output_indx":1,
-                            "dependent":{"mod_2":{"mod_indx":2, "input_indx":1}}}, 
-                "output_2":{"output_indx":2,
-                            "dependent":{"mod_3":{"mod_indx":3, "input_indx":2}}},
-                "output_3":{"output_indx":3, 
-                            "dependent":{"final":{"mod_indx":0, "input_indx":1}}}
-                             }
-        mod_config[mods[0]] = mconfig1 
+    mod_config = {}
+    mconfig = {"target_host": None, "mod_name": "default", "build": None, "params": None}
+    mconfig1 = mconfig.copy()
+    mconfig1["target"] = target[0]
+    mconfig1["dev"] = target[1]
+    # third output is final output, second output for mod2, third for  mod3
+    # input
+    mconfig1["output"] = {
+            "output_1":{"output_indx":1,
+                        "dependent":{"mod_2":{"mod_indx":2, "input_indx":1}}}, 
+            "output_2":{"output_indx":2,
+                        "dependent":{"mod_3":{"mod_indx":3, "input_indx":2}}},
+            "output_3":{"output_indx":3, 
+                        "dependent":{"final":{"mod_indx":0, "input_indx":1}}},
+                         }
+    mod_config[mods[0]] = mconfig1 
 
-        mconfig2 = mconfig.copy()
-        mconfig2["target"] = "llvm"
-        mconfig2["dev"] = tvm.cpu(0)
-        mconfig2["output"] = {
-                "output_1":{"output_indx":1,
-                            "dependent":{"mod_3":{"mod_indx":3, "input_indx":1}},
-                             }
-        mod_config[mods[1]] = mconfig2
+    mconfig2 = mconfig.copy()
+    mconfig2["target"] = "llvm"
+    mconfig2["dev"] = tvm.cpu(0)
+    mconfig2["output"] = {
+            "output_1":{"output_indx":1,
+                        "dependent":{"mod_3":{"mod_indx":3, "input_indx":1}},
+                       }
+                         }
+    mod_config[mods[1]] = mconfig2
 
-        mconfig3 = mconfig.copy()
-        mconfig3["target"] = "llvm"
-        mconfig3["dev"] = tvm.cpu(0)
-        mconfig3["output"] = {"output_indx":1,
-                              "dpendent":{"final":{"mod_indx":0, "input_indx":2}}
-                             }
-        mod_config[mods[2]] = mconfig3
-
-
-    """
-    for mod in mods:
-        mconfig = {"target_host": None, "mod_name": "default", "build": None, "params": None}
-        # first two module use target that could be "cuda", "nvptx" etc.
-        if indx < 2:
-            mconfig["target"] = target[0]
-            mconfig["dev"] = target[1]
-        else:
-            mconfig["target"] = "llvm"
-            mconfig["dev"] = tvm.cpu()
-
-        mod_config[mod] = mconfig
-        indx = indx + 1
-    #"""
+    mconfig3 = mconfig.copy()
+    mconfig3["target"] = "llvm"
+    mconfig3["dev"] = tvm.cpu(0)
+    mconfig3["output"] = {
+             "output_1":{"output_indx":1,
+                          "dependent":{"final":{"mod_indx":0, "input_indx":2}}
+                        }
+                          }
+    mod_config[mods[2]] = mconfig3
 
     """
     #Run with graph executor for verification purpose

@@ -82,7 +82,7 @@ def create(mods, mod_config):
 
         mods.append(mod)
 
-    submodule = PipelineModule(mods, config)
+    submodule = PipelineModule(mods, mod_config)
     return submodule
 
 
