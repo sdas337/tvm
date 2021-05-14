@@ -33,7 +33,7 @@ def run_modules(mod_configs, dev, target, dname, data):
 
         m = graph_executor.GraphModule(lib["default"](dev))
         # Get input information
-        mod_key = "mod_{}".format(indx)
+        mod_key = indx
         if mod_key in mod_input:
             for input in mod_input[mod_key]:
                 input = mod_input[mod_key][input]
@@ -45,20 +45,20 @@ def run_modules(mod_configs, dev, target, dname, data):
         # parse mod_config and set current output as next mod input data
         mconfig = mod_configs[mod]
         for output in mconfig["pipeline"]["output"]:
-            output = mconfig["pipeline"]["output"][output]
+            #output = mconfig["pipeline"]["output"][output]
             output_data = m.get_output(output["output_indx"] - 1).asnumpy()
-            for sub_mod in output["dependent"]:
-                dep = output["dependent"][sub_mod]
+            for dep in output["dependent"]:
                 # currnet output use as dependent input,
                 # input_indx indicate the input index number.
                 input_indx = dep["input_indx"]
-                if sub_mod == "final":
+                mod_indx = dep["mod_indx"]
+                if mod_indx == 0:
                     final_output[input_indx] = output_data
                 else:
-                    if sub_mod in mod_input:
-                        mod_input[sub_mod][input_indx] = {"index":input_indx, "data":output_data}
+                    if mod_indx in mod_input:
+                        mod_input[mod_indx][input_indx] = {"index":input_indx, "data":output_data}
                     else:
-                        mod_input[sub_mod] = {input_indx:{"index":input_indx, "data":output_data}}
+                        mod_input[mod_indx] = {input_indx:{"index":input_indx, "data":output_data}}
         #output = m.get_output(0).asnumpy()
         #data = output
 
@@ -130,15 +130,15 @@ def run_pipeline(target):
     # input
     mconfig1["pipeline"] = {
             "mod_indx":1,
-            "output":{
-            "output_1":{"output_indx":1,
-                        "dependent":{"mod_2":{"mod_indx":2, "input_indx":1}}}, 
-            "output_2":{"output_indx":2,
-                        "dependent":{"mod_3":{"mod_indx":3, "input_indx":2}}},
-            "output_3":{"output_indx":3, 
-                        "dependent":{"final":{"mod_indx":0, "input_indx":1}}},
-                         }
-                    }
+            "output":[
+             {"output_indx":1,
+              "dependent":[{"mod_indx":2, "input_indx":1}]}, 
+             {"output_indx":2,
+              "dependent":[{"mod_indx":3, "input_indx":2}]},
+             {"output_indx":3, 
+              "dependent":[{"mod_indx":0, "input_indx":1}]},
+             ]
+             }
     mod_config[mods[0]] = mconfig1 
 
     mconfig2 = mconfig.copy()
@@ -146,11 +146,10 @@ def run_pipeline(target):
     mconfig2["dev"] = tvm.cpu(0)
     mconfig2["pipeline"] = {
             "mod_indx":2,
-            "output":{
-            "output_1":{"output_indx":1,
-                        "dependent":{"mod_3":{"mod_indx":3, "input_indx":1}},
-                       }
-                         }
+            "output":
+            [{"output_indx":1,
+              "dependent":[{"mod_indx":3, "input_indx":1}]},
+            ]
                      }
     mod_config[mods[1]] = mconfig2
 
@@ -159,12 +158,11 @@ def run_pipeline(target):
     mconfig3["dev"] = tvm.cpu(0)
     mconfig3["pipeline"] = {
             "mod_indx":3,
-            "output":{
-             "output_1":{"output_indx":1,
-                          "dependent":{"final":{"mod_indx":0, "input_indx":2}}
-                        }
-                          }
-                      }
+            "output":
+             [{"output_indx":1,
+               "dependent":[{"mod_indx":0, "input_indx":2}]}
+             ]
+                     }
     mod_config[mods[2]] = mconfig3
 
     """
