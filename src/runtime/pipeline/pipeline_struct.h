@@ -37,6 +37,7 @@
 #define SUB_Q_SIZE 1024
 using namespace tvm::runtime;
 using namespace std;
+typedef unordered_map<int, unordered_map<int, int>> RUNTIME_PIPELINE_CONF;
 // thread control struction, for single consumer single producer mode
 class TControl {
  private:
@@ -335,13 +336,14 @@ class RuntimeItem {
   shared_ptr<RuntimeItem> prev = nullptr;
   shared_ptr<RuntimeItem> next = nullptr;
 
+  RUNTIME_PIPELINE_CONF runtime_pipeline_conf;
   int inputsNum;
   RuntimeData rData;
   TControl control;
   QUEUE* queue = nullptr;
   thread t;
   shared_ptr<RuntimeFunction> runtimePtr = nullptr;
-  RuntimeItem(Module mod, QUEUE* inputQueue) {
+  RuntimeItem(Module mod, QUEUE* inputQueue, RUNTIME_PIPELINE_CONF *pconfig) {
     if (runtimePtr == nullptr) {
       runtimePtr = make_shared<RuntimeFunction>(mod);
       inputsNum = runtimePtr->NumOutputs();
@@ -351,6 +353,7 @@ class RuntimeItem {
     if (!queue) {
       queue = inputQueue;
     }
+    runtime_pipeline_conf = *pconfig;
   }
 
   RuntimeItem(void) {}

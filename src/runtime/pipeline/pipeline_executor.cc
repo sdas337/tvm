@@ -21,7 +21,6 @@
  * \file pipeline_runtime.cc
  */
 #include "pipeline_executor.h"
-
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
@@ -39,7 +38,11 @@ void SubGraphRuntime::Run() { pipeline_run(runtimes); }
 void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
                            const std::string& pipeline_json) {
   cout <<"SubGraphRuntime::Init" << pipeline_json <<endl;
-  pipeline_init(modules, &runtimes);
+  //string tmp = "{\"mod1\":1\n}";
+  std::istringstream is(pipeline_json);
+  dmlc::JSONReader reader(&is);
+  this->Load(&reader);
+  pipeline_init(modules, &runtimes, &pipeline_conf);
   SetupStorage();
   return;
 }

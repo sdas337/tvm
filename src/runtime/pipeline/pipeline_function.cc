@@ -52,11 +52,15 @@ thread* pipeline_pipeline_init(SHARED_RUNTIME_VEC* runtimes) {
   return NULL;
 }
 
-void pipeline_init(Array<Module> graphRuntimes, SHARED_RUNTIME_VEC* runtimes) {
+void pipeline_init(Array<Module> graphRuntimes,
+                   SHARED_RUNTIME_VEC* runtimes,
+                   PIPELINE_CONF* pipeline_conf) {
   int len = graphRuntimes.size();
   for (int i = 0; i < len; i++) {
     QUEUE* sub_queue = createQueue<SLOT>(NULL, SUB_Q_SIZE);
-    auto runItem = make_shared<RuntimeItem>(graphRuntimes[i], sub_queue);
+    auto runItem = make_shared<RuntimeItem>(graphRuntimes[i],
+                                            sub_queue,
+                                            &((*pipeline_conf)[i + 1]));
     runtimes->push_back(runItem);
     /*
        set prev and next for RuntimeItem, runtime need these information to
@@ -108,4 +112,8 @@ bool pipeline_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes, 
   return suc;
 }
 
-void pipeline_stop(const SHARED_RUNTIME_VEC& runtimes) { runtimes.front()->notifyNextExit(); }
+void pipeline_stop(const SHARED_RUNTIME_VEC& runtimes) { 
+  if (!runtimes.empty()) {
+    runtimes.front()->notifyNextExit(); 
+  }
+}

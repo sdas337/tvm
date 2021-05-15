@@ -29,7 +29,8 @@
 #include <vector>
 
 #include "pipeline_function.h"
-
+#include "../file_utils.h"
+using namespace std;
 namespace tvm {
 namespace runtime {
 
@@ -104,9 +105,64 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
    */
   Array<NDArray> GetOutput(bool syncPoll = true);
 
+
+  void Load(dmlc::JSONReader* reader) {
+    reader->BeginArray();
+    while (reader->NextArrayItem()) {
+      std::string key;
+      reader->BeginObject();
+      int mod_indx = 0;
+      unordered_map<int , unordered_map<int, int>> output;
+      while (reader->NextObjectItem(&key)) {
+        if (key == "mod_indx") {
+          reader->Read(&mod_indx);
+        }
+        if (key == "output") {
+          reader->BeginArray();
+          while (reader->NextArrayItem()) {
+            int output_indx = -1;
+            unordered_map<int, int> depend;
+            reader->BeginObject();
+            while (reader->NextObjectItem(&key)) {
+              if (key == "output_indx"){
+                reader->Read(&output_indx);
+              }
+              if (key == "dependent") {
+                reader->BeginArray();
+                int dep_mod_indx = -1, input_indx = -1;
+                while (reader->NextArrayItem()) {
+                  reader->BeginObject();
+                  while (reader->NextObjectItem(&key)) {
+                    if (key == "mod_indx"){
+                      reader->Read(&dep_mod_indx);
+                    }
+                    if (key == "input_indx") {
+                      reader->Read(&input_indx);
+                    }
+                  }
+                  if (dep_mod_indx >= 0 && input_indx >= 0) {
+                    depend[dep_mod_indx] = input_indx;
+                  }
+              }
+            }
+          }
+
+          if (output_indx >= 0 ) {
+            output[output_indx] = depend;
+          }
+        }
+      }
+    }
+    if (mod_indx >= 0) {
+      pipeline_conf[mod_indx] = output;
+    }
+  }
+}
+
  protected:
-  std::vector<NDArray> output_entry_;
-  std::vector<shared_ptr<RuntimeItem>> runtimes;
+  vector<NDArray> output_entry_;
+  PIPELINE_CONF pipeline_conf;
+  vector<shared_ptr<RuntimeItem>> runtimes;
 };
 }  // namespace runtime
 }  // namespace tvm
