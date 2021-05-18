@@ -37,7 +37,7 @@
 #define SUB_Q_SIZE 1024
 using namespace tvm::runtime;
 using namespace std;
-typedef unordered_map<int, unordered_map<int, int>> RUNTIME_PIPELINE_CONF;
+typedef unordered_map<int, unordered_map<int, int>> RUNTIME_PIPELINE_OUTPUT_CONF;
 // thread control struction, for single consumer single producer mode
 class TControl {
  private:
@@ -76,6 +76,82 @@ class TControl {
   }
 };
 
+#define DEPENDENT_MAX 32
+#define TYP_MAX(type) ( 1<< size_of(type) - 1)
+typedef uint8_t DEP_INDX_TYPE;
+class Dependent{
+ private:
+  /* index 0  represent output is final output or not.*/
+  uint8_t bFinal;
+  /* how many dependent*/
+  uint8_t depNum;
+  /* dependent input index number.*/
+  DEP_INDX_TYPE dependent[DEPENDENT_MAX] = {0};
+
+ public:
+  void SetDepModInputIndx(const int modIndx, const uint8_t inputIndx) {
+    assert(modIndx <= DEPENDENT_MAX);
+    assert(inputIndx <= TYP_MAX(DEP_INDX_TYPE));
+    dependent[modIndx - 1] = inputIndx;
+    depNum ++;
+  }
+
+  int GetDepModInputIndx(const int modIndx) {
+    return dependent[modIndx - 1];
+  }
+
+  void RemoveDependentRef(const int modIndx) {
+    dependent[modIndx - 1] = 0;
+    depNum --;
+  }
+  
+  /*
+   * check if the output need get forward to next runtime.
+   */
+  bool NeedForward() {
+    return (bFinal || depNum > 0);
+  }
+};
+
+class OutputData {
+  public:
+    OutputData(const NDArray &data, 
+               const size_t Indx,
+               RUNTIME_PIPELINE_OUTPUT_CONF &runtime_pipeline_output_conf) {
+      assert(runtime_pipeline_output_conf.size() < DEPENDENT_MAX);
+      data_ = data;
+      outputIndx = Indx;
+      for (auto conf: runtime_pipeline_output_conf[outputIndx]) {
+        dependent.SetDepModInputIndx(conf.first, conf.second);
+      }
+           
+    }
+
+    int runtimeIdx;
+    /* reserved, for debug purpose
+     */
+    int outputIndx;
+    /* index 0  represent output is final output or not.
+     * index offset is dependent mod index,
+     * value is dependent mode input index
+     */
+    Dependent dependent;   
+    NDArray data_;
+
+    int GetResetModInputIndx(int modIndx){
+      assert(modIndx < DEPENDENT_MAX);
+      int ret = dependent.GetDepModInputIndx(modIndx);
+      /* reset to clear dependent value
+       */
+      dependent.RemoveDependentRef(modIndx);
+      return ret;
+    }
+
+    bool NeedForward() {
+      return dependent.NeedForward();
+    }
+};
+
 class pipelineData {
  private:
   void ResetDataList(size_t num) {
@@ -111,6 +187,17 @@ class pipelineData {
   }
 
  public:
+  void Copy(const vector<OutputData>& dlOutput, int device_type, int device_id) {
+    num = dlOutput.size();
+    ResetDataList(num);
+
+    for (size_t i = 0; i < num; i++) {
+      CreateCopyFrom(const_cast<const DLTensor*>(dlOutput[i].data_.operator->()),
+                     &dataList[i], device_type, device_id);
+    }
+    return;
+  }
+
   void Copy(const Array<NDArray>& dlArray, int device_type, int device_id) {
     num = dlArray.size();
     ResetDataList(num);
@@ -152,6 +239,7 @@ class pipelineData {
   size_t num;
   size_t max_num;
   DLTensor** dataList;
+  Dependent dependent;
   TControl controlData;
   pipelineData(void) : num(0), max_num(0), dataList(nullptr) {}
 };
@@ -330,20 +418,97 @@ class RuntimeData {
     return *this;
   }
 };
+/*
+#define DEPENDENT_MAX 32
+#define TYP_MAX(type) ( 1<< size_of(type) - 1)
+typedef uint8_t DEP_INDX_TYPE;
+class Dependent{
+ private:
+  // index 0  represent output is final output or not./
+  uint8_t bFinal;
+  // how many dependent/
+  uint8_t depNum;
+  // dependent input index number
+  DEP_INDX_TYPE dependent[DEPENDENT_MAX] = {0};
+
+ public:
+  void SetDepModInputIndx(const int modIndx, const uint8_t inputIndx) {
+    assert(modIndx <= DEPENDENT_MAX);
+    assert(inputIndx <= TYP_MAX(DEP_INDX_TYPE));
+    dependent[modIndx - 1] = inputIndx;
+    depNum ++;
+  }
+
+  int GetDepModInputIndx(const int modIndx) {
+    return dependent[modIndx - 1];
+  }
+
+  void RemoveDependentRef(const int modIndx) {
+    dependent[modIndx - 1] = 0;
+    depNum --;
+  }
+  
+  //
+  // * check if the output need get forward to next runtime.
+   
+  bool NeedForward() {
+    return (bFinal || depNum > 0);
+  }
+};
+class OutputData {
+  public:
+    OutputData(const NDArray &data, 
+               const size_t Indx,
+               RUNTIME_PIPELINE_OUTPUT_CONF &runtime_pipeline_output_conf) {
+      assert(runtime_pipeline_output_conf.size() < DEPENDENT_MAX);
+      data_ = data;
+      outputIndx = Indx;
+      for (auto conf: runtime_pipeline_output_conf[outputIndx]) {
+        dependent.SetDepModInputIndx(conf.first, conf.second);
+      }
+           
+    }
+
+    int runtimeIdx;
+    // reserved, for debug purpose
+    
+    int outputIndx;
+    // index 0  represent output is final output or not.
+    // index offset is dependent mod index,
+    // value is dependent mode input index
+    //
+    Dependent dependent;   
+    NDArray data_;
+
+    int GetResetModInputIndx(int modIndx){
+      assert(modIndx < DEPENDENT_MAX);
+      int ret = dependent.GetDepModInputIndx(modIndx);
+      // reset to clear dependent value
+      //
+      dependent.RemoveDependentRef(modIndx);
+      return ret;
+    }
+
+    bool NeedForward() {
+      return dependent.NeedForward();
+    }
+};
+*/
 
 class RuntimeItem {
  public:
   shared_ptr<RuntimeItem> prev = nullptr;
   shared_ptr<RuntimeItem> next = nullptr;
 
-  RUNTIME_PIPELINE_CONF runtime_pipeline_conf;
+  RUNTIME_PIPELINE_OUTPUT_CONF runtime_pipeline_output_conf;
+  int runtimeIndx;
   int inputsNum;
   RuntimeData rData;
   TControl control;
   QUEUE* queue = nullptr;
   thread t;
   shared_ptr<RuntimeFunction> runtimePtr = nullptr;
-  RuntimeItem(Module mod, QUEUE* inputQueue, RUNTIME_PIPELINE_CONF *pconfig) {
+  RuntimeItem(Module mod, QUEUE* inputQueue, RUNTIME_PIPELINE_OUTPUT_CONF *pconfig, int indx) {
     if (runtimePtr == nullptr) {
       runtimePtr = make_shared<RuntimeFunction>(mod);
       inputsNum = runtimePtr->NumOutputs();
@@ -353,7 +518,8 @@ class RuntimeItem {
     if (!queue) {
       queue = inputQueue;
     }
-    runtime_pipeline_conf = *pconfig;
+    runtime_pipeline_output_conf = *pconfig;
+    runtimeIndx = indx;
   }
 
   RuntimeItem(void) {}
@@ -389,6 +555,19 @@ class RuntimeItem {
     size_t outputsNum = runtimePtr->NumOutputs();
     for (size_t i = 0; i < outputsNum; i++) {
       auto output = runtimePtr->GetOutput(i);
+      outputs.push_back(output);
+    }
+    return outputs;
+  }
+
+  vector<OutputData> GetOutput2(void) {
+    vector<OutputData> outputs;
+    size_t outputsNum = runtimePtr->NumOutputs();
+    for (size_t i = 0; i < outputsNum; i++) {
+      OutputData output(runtimePtr->GetOutput(i),
+                        i + 1,
+                        runtime_pipeline_output_conf);
+
       outputs.push_back(output);
     }
     return outputs;

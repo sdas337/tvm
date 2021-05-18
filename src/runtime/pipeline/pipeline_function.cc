@@ -60,7 +60,8 @@ void pipeline_init(Array<Module> graphRuntimes,
     QUEUE* sub_queue = createQueue<SLOT>(NULL, SUB_Q_SIZE);
     auto runItem = make_shared<RuntimeItem>(graphRuntimes[i],
                                             sub_queue,
-                                            &((*pipeline_conf)[i + 1]));
+                                            &((*pipeline_conf)[i + 1]),
+                                            i);
     runtimes->push_back(runItem);
     /*
        set prev and next for RuntimeItem, runtime need these information to
