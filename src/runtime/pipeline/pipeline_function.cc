@@ -38,7 +38,7 @@ void pipeline_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRun
 
     curRunItem->Run();
 
-    auto output = curRunItem->GetOutput();
+    auto output = curRunItem->GetOutput2();
     pipeline_queue_push(nextQueue, output);
     curRunItem->notifyDataReadyToNext();
   }
@@ -78,8 +78,9 @@ void pipeline_init(Array<Module> graphRuntimes,
   return;
 }
 
-inline void pipeline_queue_push(QUEUE* queue, Array<NDArray> arrays) {
-  q_push<SLOT, Array<NDArray>>(queue, arrays);
+//inline void pipeline_queue_push(QUEUE* queue, Array<NDArray> arrays) {
+inline void pipeline_queue_push(QUEUE* queue, vector<OutputData> arrays) {
+  q_push<SLOT, vector<OutputData>>(queue, arrays);
   return;
 }
 
@@ -90,7 +91,7 @@ bool pipeline_queue_poll(QUEUE* queue, RuntimeData* runtimeData) {
 void pipeline_run(const SHARED_RUNTIME_VEC& runtimes) {
   shared_ptr<RuntimeItem> runtime = runtimes.front();
   runtime->Run();
-  pipeline_queue_push(runtime->next->queue, runtime->GetOutput());
+  pipeline_queue_push(runtime->next->queue, runtime->GetOutput2());
   runtime->notifyDataReadyToNext();
   return;
 }

@@ -32,7 +32,7 @@ void pipeline_init(Array<Module> graphRuntimes,
                    SHARED_RUNTIME_VEC* runtimes,
                    PIPELINE_CONF *pipeline_conf);
 void pipeline_run(const SHARED_RUNTIME_VEC& runtimes);
-inline void pipeline_queue_push(QUEUE* queue, Array<NDArray> arrays);
+inline void pipeline_queue_push(QUEUE* queue, vector<OutputData> arrays);
 bool pipeline_queue_poll(QUEUE* queue, RuntimeData* runtimeData);
 bool pipeline_poll(vector<NDArray>* output, const SHARED_RUNTIME_VEC& runtimes,
                    const bool bSync = false);
