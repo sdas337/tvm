@@ -38,8 +38,9 @@ void pipeline_pipeline_run(const int& num, const shared_ptr<RuntimeItem>& curRun
 
     curRunItem->Run();
 
-    auto output = curRunItem->GetOutput2();
-    pipeline_queue_push(nextQueue, output);
+    vector<shared_ptr<OutputData>> outputs;
+    curRunItem->GetOutput2(&outputs);
+    pipeline_queue_push(nextQueue, &outputs);
     curRunItem->notifyDataReadyToNext();
   }
   curRunItem->notifyNextExit();
@@ -79,8 +80,8 @@ void pipeline_init(Array<Module> graphRuntimes,
 }
 
 //inline void pipeline_queue_push(QUEUE* queue, Array<NDArray> arrays) {
-inline void pipeline_queue_push(QUEUE* queue, vector<OutputData> arrays) {
-  q_push<SLOT, vector<OutputData>>(queue, arrays);
+inline void pipeline_queue_push(QUEUE* queue, vector<shared_ptr<OutputData>>* outputs) {
+  q_push<SLOT, vector<shared_ptr<OutputData>> *>(queue, outputs);
   return;
 }
 
@@ -88,10 +89,30 @@ bool pipeline_queue_poll(QUEUE* queue, RuntimeData* runtimeData) {
   return q_poll<SLOT, RuntimeData>(queue, runtimeData);
 }
 
+/*
+void subgraph_run_serial(const SHARED_RUNTIME_VEC runtimes) {
+  runtimes[0]->Run();
+  for (int i = 1; i < runtimes.size(); i++) {
+    int oNum = runtimes[i - 1]->runtimePtr->NumOutputs();
+    for (int j = 0; j < oNum; j++) {
+      auto o = runtimes[i - 1]->runtimePtr->GetOutput(j);
+      DLTensor* ptr = const_cast<DLTensor*>(o.operator->());
+      runtimes[i]->runtimePtr->SetInput(j, ptr);
+    }
+    runtimes[i]->Run();
+  }
+}
+*/
+
 void pipeline_run(const SHARED_RUNTIME_VEC& runtimes) {
+  //subgraph_run_serial(runtimes);
+  //return;
   shared_ptr<RuntimeItem> runtime = runtimes.front();
   runtime->Run();
-  pipeline_queue_push(runtime->next->queue, runtime->GetOutput2());
+
+  vector<shared_ptr<OutputData>> outputs;
+  runtime->GetOutput2(&outputs);
+  pipeline_queue_push(runtime->next->queue, &outputs);
   runtime->notifyDataReadyToNext();
   return;
 }

@@ -246,13 +246,12 @@ void FreeData() {
   }
 
  public:
-  vector<OutputData> ExportData() {
-      vector<OutputData> ret;
+  void ExportAppendData(vector<shared_ptr<OutputData>> *outputs) {
       for (size_t i = 0; i < num; i++) {
-        OutputData var = inputList[i];
-        ret.push_back(var);
+        shared_ptr<OutputData> var = make_shared<OutputData>(inputList[i]);
+        outputs->push_back(var);
       }
-      return ret;
+      return;
   }
 
   void Copy(const vector<InputData*>& dlInput, int device_type , int device_id) {
@@ -266,13 +265,13 @@ void FreeData() {
     return;
   }
 
-  void Copy(const vector<OutputData>& dlOutput, int device_type, int device_id) {
-    num = dlOutput.size();
+  void Copy(const vector<shared_ptr<OutputData>>* dlOutput, int device_type, int device_id) {
+    num = dlOutput->size();
     ResetDataList(num);
 
     for (size_t i = 0; i < num; i++) {
-      CreateCopyFrom(const_cast<const DLTensor*>(dlOutput[i].data_.operator->()),
-                     dlOutput[i].dependent, &inputList[i], device_type, device_id);
+      CreateCopyFrom(const_cast<const DLTensor*>(dlOutput->at(i)->data_.operator->()),
+                     dlOutput->at(i)->dependent, &inputList[i], device_type, device_id);
     }
     return;
   }
@@ -352,7 +351,7 @@ class slot_t {
   }
   */
 
-  slot_t<device_type, device_id>& operator=(const vector<OutputData> outputData) {
+  slot_t<device_type, device_id>& operator=(const vector<shared_ptr<OutputData>>* outputData) {
     data.Copy(outputData, device_type, device_id);
     return *this;
   }
@@ -529,8 +528,9 @@ class RuntimeData {
   }
 
  public:
-  vector<OutputData> ExportData() {
-    return forwardData.ExportData();
+  void ExportAppendData(vector<shared_ptr<OutputData>>* outputs) {
+    forwardData.ExportAppendData(outputs);
+    return;
   }
 
   void Init(shared_ptr<RuntimeFunction> runtime, int Indx) {
@@ -569,6 +569,7 @@ class RuntimeItem {
     if (runtimePtr == nullptr) {
       runtimePtr = make_shared<RuntimeFunction>(mod);
       inputsNum = runtimePtr->NumOutputs();
+      runtimeIndx = indx;
       rData.Init(runtimePtr, runtimeIndx);
     }
 
@@ -617,21 +618,18 @@ class RuntimeItem {
     return outputs;
   }
 
-  vector<OutputData> GetOutput2(void) {
-    vector<OutputData> outputs;
+  void GetOutput2(vector<shared_ptr<OutputData>> *outputs) {
     size_t outputsNum = runtimePtr->NumOutputs();
     for (size_t i = 0; i < outputsNum; i++) {
-      OutputData output(runtimePtr->GetOutput(i),
+      shared_ptr<OutputData> output = make_shared<OutputData>(runtimePtr->GetOutput(i),
                         i + 1,
                         runtime_pipeline_output_conf);
 
-      outputs.push_back(output);
+      outputs->push_back(output);
     }
-    /* Get these data need forwarding.
-     */
-    vector<OutputData> forwardData = rData.ExportData();
-    outputs.insert(outputs.end(), forwardData.begin(), forwardData.end());
-    return outputs;
+
+    rData.ExportAppendData(outputs);
+    return;
   }
 };
 

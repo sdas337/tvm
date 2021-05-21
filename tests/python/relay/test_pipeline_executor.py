@@ -207,6 +207,7 @@ def test_pipeline():
     target_list = tvm.testing.enabled_targets()
     for target in target_list:
         run_pipeline(target)
+        break
 
 
 if __name__ == "__main__":
