@@ -189,7 +189,11 @@ def run_pipeline(target):
     """
     pipeline_outputs = []
     for i in range(len(datas)):
-        pipeline_outputs.append(pipeline_module.get_output()[0].asnumpy())
+        outputs = pipeline_module.get_output()
+        curOutputs = []
+        for output in outputs:
+            curOutputs.append(output.asnumpy())
+        pipeline_outputs.append(curOutputs)
 
     """
     #Stop pipeline execution.

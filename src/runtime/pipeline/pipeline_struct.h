@@ -82,18 +82,30 @@ typedef uint8_t DEP_INDX_TYPE;
 class Dependent{
  private:
   /* index 0  represent output is final output or not.*/
-  uint8_t bFinal;
+  uint8_t bFinal = false;
   /* how many dependent*/
-  uint8_t depNum;
+  uint8_t depNum = 0;
   /* dependent input index number.*/
-  DEP_INDX_TYPE dependent[DEPENDENT_MAX] = {0};
+  union{
+    DEP_INDX_TYPE dependent[DEPENDENT_MAX] = {0};
+    DEP_INDX_TYPE outputIndx;
+  };
 
  public:
   void SetDepModInputIndx(const int modIndx, const uint8_t inputIndx) {
     assert(modIndx <= DEPENDENT_MAX);
     assert(inputIndx <= TYP_MAX(DEP_INDX_TYPE));
-    dependent[modIndx - 1] = inputIndx;
+    if (modIndx == 0) {
+      bFinal = true;
+      outputIndx = inputIndx;
+    } else {
+      dependent[modIndx - 1] = inputIndx;
+    }
     depNum ++;
+  }
+
+  int GetOutputIndx(void) {
+    return outputIndx;
   }
 
   int GetDepModInputIndx(const int modIndx) {
@@ -183,8 +195,9 @@ class OutputData {
      * value is dependent mode input index
      */
     Dependent dependent;   
-    NDArray data_;
     DLTensor *dltensor;
+ private:
+    NDArray data_;
 };
 
 
@@ -270,8 +283,8 @@ void FreeData() {
     ResetDataList(num);
 
     for (size_t i = 0; i < num; i++) {
-      CreateCopyFrom(const_cast<const DLTensor*>(dlOutput->at(i)->data_.operator->()),
-                     dlOutput->at(i)->dependent, &inputList[i], device_type, device_id);
+      CreateCopyFrom(dlOutput->at(i)->dltensor, dlOutput->at(i)->dependent,
+                     &inputList[i], device_type, device_id);
     }
     return;
   }
@@ -369,10 +382,35 @@ class pipelineOutputData {
   explicit pipelineOutputData(vector<NDArray>* datas) : datas_(datas) { ; }
   pipelineOutputData& operator=(const slot_t<device_type, device_id>& slot) {
     assert(datas_->size() >= slot.data.num);
+    unordered_map<int, DLTensor *> dataMap;
+    /* output may not ordered by index in slot, use a map to index them.
+     */
     for (size_t i = 0; i < slot.data.num; i++) {
-      //auto dlTensor = slot.data.dataList[i];
       auto dlTensor = slot.data.inputList[i]->data;
-      (*datas_)[i].CopyFrom(dlTensor);
+      int outputIndx = slot.data.inputList[i]->dependent.GetOutputIndx() -1;
+      assert(outputIndx < slot.data.num);
+      dataMap[outputIndx] = dlTensor;
+    }
+
+    for (size_t i = 0; i < dataMap.size(); i++) {
+      auto dlTensor = dataMap[i];
+      /* alloc NDArray if there is no NDArray Allocated in vector
+       */
+      if (datas_->size() < i + 1) {
+          /* allocated NDArray
+           */
+          vector<int64_t> shape;
+          for (int i = 0; i < dlTensor->ndim; i++) {
+            shape.push_back(dlTensor->shape[i]);
+          }
+          auto ndarray = NDArray::Empty(shape, dlTensor->dtype, dlTensor->device);
+          ndarray.CreateView(shape, dlTensor->dtype);
+
+          /* push into NDArray vector
+          */
+          datas_->push_back(ndarray);
+      }
+      datas_->at(i).CopyFrom(dlTensor);
     }
     return *this;
   }

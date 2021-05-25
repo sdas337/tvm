@@ -48,6 +48,7 @@ void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
 }
 
 void SubGraphRuntime::SetupStorage(void) {
+  /*
   auto lastGraphRuntime = runtimes.back();
   int outputNum = lastGraphRuntime->runtimePtr->NumOutputs();
   for (int i = 0; i < outputNum; i++) {
@@ -62,6 +63,7 @@ void SubGraphRuntime::SetupStorage(void) {
     ndarray.CreateView(shape, dltensor->dtype);
     output_entry_.push_back(ndarray);
   }
+  */
 }
 
 /*!
