@@ -37,7 +37,8 @@ def run_modules(mod_configs, dev, target, dname, data):
         if mod_key in mod_input:
             for input in mod_input[mod_key]:
                 input = mod_input[mod_key][input]
-                m.set_input("data_{}".format(input["index"] - 1), input["data"])
+                #m.set_input("data_{}".format(input["index"] - 1), input["data"])
+                m.set_input(input["index"] - 1, input["data"])
         else:
             m.set_input(dname, data)
         m.run()
@@ -134,7 +135,7 @@ def run_pipeline(target):
              {"output_indx":1,
               "dependent":[{"mod_indx":2, "input_indx":1}]}, 
              {"output_indx":2,
-              "dependent":[{"mod_indx":3, "input_indx":2}]},
+              "dependent":[{"mod_indx":3, "input_indx":1}]},
              {"output_indx":3, 
               "dependent":[{"mod_indx":0, "input_indx":1}]},
              ]
@@ -148,7 +149,7 @@ def run_pipeline(target):
             "mod_indx":2,
             "output":
             [{"output_indx":1,
-              "dependent":[{"mod_indx":3, "input_indx":1}]},
+              "dependent":[{"mod_indx":3, "input_indx":2}]},
             ]
                      }
     mod_config[mods[1]] = mconfig2
@@ -156,6 +157,7 @@ def run_pipeline(target):
     mconfig3 = mconfig.copy()
     mconfig3["target"] = "llvm"
     mconfig3["dev"] = tvm.cpu(0)
+
     mconfig3["pipeline"] = {
             "mod_indx":3,
             "output":
@@ -189,10 +191,7 @@ def run_pipeline(target):
     """
     pipeline_outputs = []
     for i in range(len(datas)):
-        outputs = pipeline_module.get_output()
-        curOutputs = []
-        for output in outputs:
-            curOutputs.append(output.asnumpy())
+        curOutputs = [ output.asnumpy() for output in pipeline_module.get_output()]
         pipeline_outputs.append(curOutputs)
 
     """
@@ -204,7 +203,8 @@ def run_pipeline(target):
     #Verify result
     """
     for ref_out, out in zip(outs, pipeline_outputs):
-        tvm.testing.assert_allclose(ref_out, out)
+        for ref in ref_out:
+            tvm.testing.assert_allclose(ref_out[ref], out[ref - 1])
 
 
 def test_pipeline():

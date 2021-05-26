@@ -549,7 +549,7 @@ class RuntimeData {
        */
       int inputIndx = data[i]->dependent.GetDepModInputIndx(runtimeIndx);
       if (inputIndx > 0) {
-        runtimePtr->SetInput(inputIndx, data[i]->data);
+        runtimePtr->SetInput(inputIndx - 1, data[i]->data);
         /* data getused remove dependent reference for current runtime
          */
         data[i]->dependent.RemoveDependentRef(runtimeIndx);
