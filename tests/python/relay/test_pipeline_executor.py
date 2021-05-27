@@ -37,7 +37,6 @@ def run_modules(mod_configs, dev, target, dname, data):
         if mod_key in mod_input:
             for input in mod_input[mod_key]:
                 input = mod_input[mod_key][input]
-                #m.set_input("data_{}".format(input["index"] - 1), input["data"])
                 m.set_input(input["index"] - 1, input["data"])
         else:
             m.set_input(dname, data)
@@ -46,7 +45,6 @@ def run_modules(mod_configs, dev, target, dname, data):
         # parse mod_config and set current output as next mod input data
         mconfig = mod_configs[mod]
         for output in mconfig["pipeline"]["output"]:
-            #output = mconfig["pipeline"]["output"][output]
             output_data = m.get_output(output["output_indx"] - 1).asnumpy()
             for dep in output["dependent"]:
                 # currnet output use as dependent input,
@@ -57,12 +55,11 @@ def run_modules(mod_configs, dev, target, dname, data):
                     final_output[input_indx] = output_data
                 else:
                     if mod_indx in mod_input:
-                        mod_input[mod_indx][input_indx] = {"index":input_indx, "data":output_data}
+                        mod_input[mod_indx][input_indx] = {"index": input_indx, "data": output_data}
                     else:
-                        mod_input[mod_indx] = {input_indx:{"index":input_indx, "data":output_data}}
-        #output = m.get_output(0).asnumpy()
-        #data = output
-
+                        mod_input[mod_indx] = {
+                            input_indx: {"index": input_indx, "data": output_data}
+                        }
         indx = indx + 1
 
     return final_output
@@ -95,15 +92,15 @@ def get_mannual_mod():
     net3 = relay.multiply(data_net2_output_1, mv3)
     net3 = relay.add(net3, data_net1_output_2)
 
-    mods.append(tvm.IRModule.from_expr(relay.Function([data],
-                                       relay.Tuple([net_output1,
-                                                    net_output2,
-                                                    net_output3])
-        )))
-    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_1],
-                                                       net2)))
-    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_2, data_net2_output_1],
-                                                       net3)))
+    mods.append(
+        tvm.IRModule.from_expr(
+            relay.Function([data], relay.Tuple([net_output1, net_output2, net_output3]))
+        )
+    )
+    mods.append(tvm.IRModule.from_expr(relay.Function([data_net1_output_1], net2)))
+    mods.append(
+        tvm.IRModule.from_expr(relay.Function([data_net1_output_2, data_net2_output_1], net3))
+    )
 
     return mods, dshape
 
@@ -130,28 +127,24 @@ def run_pipeline(target):
     # third output is final output, second output for mod2, third for  mod3
     # input
     mconfig1["pipeline"] = {
-            "mod_indx":1,
-            "output":[
-             {"output_indx":1,
-              "dependent":[{"mod_indx":2, "input_indx":1}]}, 
-             {"output_indx":2,
-              "dependent":[{"mod_indx":3, "input_indx":1}]},
-             {"output_indx":3, 
-              "dependent":[{"mod_indx":0, "input_indx":1}]},
-             ]
-             }
-    mod_config[mods[0]] = mconfig1 
+        "mod_indx": 1,
+        "output": [
+            {"output_indx": 1, "dependent": [{"mod_indx": 2, "input_indx": 1}]},
+            {"output_indx": 2, "dependent": [{"mod_indx": 3, "input_indx": 1}]},
+            {"output_indx": 3, "dependent": [{"mod_indx": 0, "input_indx": 1}]},
+        ],
+    }
+    mod_config[mods[0]] = mconfig1
 
     mconfig2 = mconfig.copy()
     mconfig2["target"] = "llvm"
     mconfig2["dev"] = tvm.cpu(0)
     mconfig2["pipeline"] = {
-            "mod_indx":2,
-            "output":
-            [{"output_indx":1,
-              "dependent":[{"mod_indx":3, "input_indx":2}]},
-            ]
-                     }
+        "mod_indx": 2,
+        "output": [
+            {"output_indx": 1, "dependent": [{"mod_indx": 3, "input_indx": 2}]},
+        ],
+    }
     mod_config[mods[1]] = mconfig2
 
     mconfig3 = mconfig.copy()
@@ -159,12 +152,9 @@ def run_pipeline(target):
     mconfig3["dev"] = tvm.cpu(0)
 
     mconfig3["pipeline"] = {
-            "mod_indx":3,
-            "output":
-             [{"output_indx":1,
-               "dependent":[{"mod_indx":0, "input_indx":2}]}
-             ]
-                     }
+        "mod_indx": 3,
+        "output": [{"output_indx": 1, "dependent": [{"mod_indx": 0, "input_indx": 2}]}],
+    }
     mod_config[mods[2]] = mconfig3
 
     """
@@ -191,7 +181,7 @@ def run_pipeline(target):
     """
     pipeline_outputs = []
     for i in range(len(datas)):
-        curOutputs = [ output.asnumpy() for output in pipeline_module.get_output()]
+        curOutputs = [output.asnumpy() for output in pipeline_module.get_output()]
         pipeline_outputs.append(curOutputs)
 
     """
@@ -211,7 +201,6 @@ def test_pipeline():
     target_list = tvm.testing.enabled_targets()
     for target in target_list:
         run_pipeline(target)
-        break
 
 
 if __name__ == "__main__":

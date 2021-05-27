@@ -26,10 +26,11 @@
 #define TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include "pipeline_function.h"
 #include "../file_utils.h"
+#include "pipeline_function.h"
 using namespace std;
 namespace tvm {
 namespace runtime {
@@ -61,7 +62,6 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
   const char* type_key() const final { return "SubGraphRuntime"; }
   void Run();
   void Stop();
-  void SetupStorage();
 
   /*!
    * \brief Initialize the graph executor with graph and context.
@@ -105,14 +105,13 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
    */
   Array<NDArray> GetOutput(bool syncPoll = true);
 
-
   void Load(dmlc::JSONReader* reader) {
     reader->BeginArray();
     while (reader->NextArrayItem()) {
       std::string key;
       reader->BeginObject();
       int mod_indx = 0;
-      unordered_map<int , unordered_map<int, int>> output;
+      unordered_map<int, unordered_map<int, int>> output;
       while (reader->NextObjectItem(&key)) {
         if (key == "mod_indx") {
           reader->Read(&mod_indx);
@@ -124,7 +123,7 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
             unordered_map<int, int> depend;
             reader->BeginObject();
             while (reader->NextObjectItem(&key)) {
-              if (key == "output_indx"){
+              if (key == "output_indx") {
                 reader->Read(&output_indx);
               }
               if (key == "dependent") {
@@ -133,7 +132,7 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
                 while (reader->NextArrayItem()) {
                   reader->BeginObject();
                   while (reader->NextObjectItem(&key)) {
-                    if (key == "mod_indx"){
+                    if (key == "mod_indx") {
                       reader->Read(&dep_mod_indx);
                     }
                     if (key == "input_indx") {
@@ -143,21 +142,21 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
                   if (dep_mod_indx >= 0 && input_indx >= 0) {
                     depend[dep_mod_indx] = input_indx;
                   }
+                }
               }
             }
-          }
 
-          if (output_indx >= 0 ) {
-            output[output_indx] = depend;
+            if (output_indx >= 0) {
+              output[output_indx] = depend;
+            }
           }
         }
       }
-    }
-    if (mod_indx >= 0) {
-      pipeline_conf[mod_indx] = output;
+      if (mod_indx >= 0) {
+        pipeline_conf[mod_indx] = output;
+      }
     }
   }
-}
 
  protected:
   vector<NDArray> output_entry_;
@@ -166,5 +165,4 @@ class TVM_DLL SubGraphRuntime : public ModuleNode {
 };
 }  // namespace runtime
 }  // namespace tvm
-
 #endif  // TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_

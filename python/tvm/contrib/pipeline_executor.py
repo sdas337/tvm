@@ -42,7 +42,7 @@ def build_pipeline(config):
     string_config = [{}] * len(config)
     for ir_mod in config:
         mod_config = config[ir_mod]
-        string_config[mod_config["pipeline"]["mod_indx"]-1] = mod_config["pipeline"]
+        string_config[mod_config["pipeline"]["mod_indx"] - 1] = mod_config["pipeline"]
         build_func = relay.build
         # if there is a self defined build function then use it.
         if mod_config["build"]:

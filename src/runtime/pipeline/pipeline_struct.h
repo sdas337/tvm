@@ -32,13 +32,15 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 #define SLOT slot_t<>
 #define SUB_Q_SIZE 1024
 using namespace tvm::runtime;
 using namespace std;
 typedef unordered_map<int, unordered_map<int, int>> RUNTIME_PIPELINE_OUTPUT_CONF;
-// thread control struction, for single consumer single producer mode
+/* thread control struction, for single consumer single producer mode.
+ */
 class TControl {
  private:
   condition_variable cond;
@@ -65,8 +67,7 @@ class TControl {
   }
 
   void exit_notify(thread* t) {
-    /*
-     * set bExit first then notify
+    /* set bExit first then notify
      */
     bExit = true;
     notify();
@@ -77,16 +78,16 @@ class TControl {
 };
 
 #define DEPENDENT_MAX 32
-#define TYP_MAX(type) ( 1<< size_of(type) - 1)
+#define TYP_MAX(type) (1 << size_of(type) - 1)
 typedef uint8_t DEP_INDX_TYPE;
-class Dependent{
+class Dependent {
  private:
   /* index 0  represent output is final output or not.*/
   uint8_t bFinal = false;
   /* how many dependent*/
   uint8_t depNum = 0;
   /* dependent input index number.*/
-  union{
+  union {
     DEP_INDX_TYPE dependent[DEPENDENT_MAX] = {0};
     DEP_INDX_TYPE outputIndx;
   };
@@ -101,28 +102,22 @@ class Dependent{
     } else {
       dependent[modIndx - 1] = inputIndx;
     }
-    depNum ++;
+    depNum++;
   }
 
-  int GetOutputIndx(void) {
-    return outputIndx;
-  }
+  int GetOutputIndx(void) { return outputIndx; }
 
-  int GetDepModInputIndx(const int modIndx) {
-    return dependent[modIndx - 1];
-  }
+  int GetDepModInputIndx(const int modIndx) { return dependent[modIndx - 1]; }
 
   void RemoveDependentRef(const int modIndx) {
     dependent[modIndx - 1] = 0;
-    depNum --;
+    depNum--;
   }
-  
+
   /*
    * check if the output need get forward to next runtime.
    */
-  bool NeedForward() {
-    return (bFinal || depNum > 0);
-  }
+  bool NeedForward() { return (bFinal || depNum > 0); }
 };
 
 class InputData {
@@ -139,8 +134,8 @@ class InputData {
         TVMArrayFree(data);
         data = nullptr;
       }
-      TVMArrayAlloc(from->shape, from->ndim, from->dtype.code, from->dtype.bits,
-                    from->dtype.lanes, device_type, device_id, &data);
+      TVMArrayAlloc(from->shape, from->ndim, from->dtype.code, from->dtype.bits, from->dtype.lanes,
+                    device_type, device_id, &data);
     }
     TVMArrayCopyFromTo(const_cast<DLTensor*>(from), data, nullptr);
     return data;
@@ -148,72 +143,64 @@ class InputData {
   ~InputData() {
     if (data) {
       TVMArrayFree(data);
-      data = nullptr;   
+      data = nullptr;
     }
   }
 };
 
 class OutputData {
-  public:
-    OutputData(const NDArray &data, 
-               const size_t Indx,
-               RUNTIME_PIPELINE_OUTPUT_CONF &runtime_pipeline_output_conf) {
-      assert(runtime_pipeline_output_conf.size() < DEPENDENT_MAX);
-      /* use data_ to keep the NDArray data reference, to avoid memory
-       * used by DLTensor get freed.
-       */
-      data_ = data;
-      dltensor = const_cast<DLTensor *>(data_.operator->());
-      outputIndx = Indx;
-      for (auto conf: runtime_pipeline_output_conf[outputIndx]) {
-        dependent.SetDepModInputIndx(conf.first, conf.second);
-      }
-           
-    }
-
-    OutputData(const InputData* pdata) {
-      dependent = pdata->dependent;
-      /* caller need make sure pdata->data is avaialble.
-       */
-      dltensor = pdata->data;
-    }
-
-    OutputData & operator = (const InputData* pdata) {
-      dependent = pdata->dependent;
-      /* caller need make sure pdata->data is avaialble.
-       */
-      dltensor = pdata->data;
-      return *this;
-    }
-
-    int runtimeIdx;
-    /* reserved, for debug purpose
+ public:
+  OutputData(const NDArray& data, const size_t Indx,
+             RUNTIME_PIPELINE_OUTPUT_CONF runtime_pipeline_output_conf) {
+    assert(runtime_pipeline_output_conf.size() < DEPENDENT_MAX);
+    /* use data_ to keep the NDArray data reference, to avoid memory
+     * used by DLTensor get freed.
      */
-    int outputIndx;
-    /* index 0  represent output is final output or not.
-     * index offset is dependent mod index,
-     * value is dependent mode input index
+    data_ = data;
+    dltensor = const_cast<DLTensor*>(data_.operator->());
+    outputIndx = Indx;
+    for (auto conf : runtime_pipeline_output_conf[outputIndx]) {
+      dependent.SetDepModInputIndx(conf.first, conf.second);
+    }
+  }
+
+  explicit OutputData(const InputData* pdata) {
+    dependent = pdata->dependent;
+    /* caller need make sure pdata->data is avaialble.
      */
-    Dependent dependent;   
-    DLTensor *dltensor;
+    dltensor = pdata->data;
+  }
+
+  OutputData& operator=(const InputData* pdata) {
+    dependent = pdata->dependent;
+    /* caller need make sure pdata->data is avaialble.
+     */
+    dltensor = pdata->data;
+    return *this;
+  }
+
+  int runtimeIdx;
+  /* reserved, for debug purpose
+   */
+  int outputIndx;
+  /* index 0  represent output is final output or not.
+   * index offset is dependent mod index,
+   * value is dependent mode input index
+   */
+  Dependent dependent;
+  DLTensor* dltensor;
+
  private:
-    NDArray data_;
+  NDArray data_;
 };
-
 
 class PipelineData {
  private:
-void FreeData() {
+  void FreeData() {
     for (size_t i = 0; i < max_num; i++) {
-      //TVMArrayFree(dataList[i]);
       delete inputList[i];
     }
 
-    //if (dataList) {
-    //  free(dataList);
-    //}
-
-    // free inputList variable
     if (inputList) {
       free(inputList);
     }
@@ -222,33 +209,14 @@ void FreeData() {
   void ResetDataList(size_t num) {
     if (max_num < num) {
       FreeData();
-      //dataList = reinterpret_cast<DLTensor**>(calloc(num, sizeof(DLTensor*)));
-      // alloc inputList
       inputList = reinterpret_cast<InputData**>(calloc(num, sizeof(InputData)));
       max_num = num;
     }
     return;
   }
-  /*
-  DLTensor* CreateCopyFrom(const DLTensor* from, DLTensor** to, int device_type, int device_id) {
-    size_t fromLen = tvm::runtime::GetDataSize(*from);
-    size_t toLen = *to ? tvm::runtime::GetDataSize(*(*to)) : 0;
 
-    if (fromLen != toLen) {
-      if (*to) {
-        TVMArrayFree(*to);
-        *to = nullptr;
-      }
-      TVMArrayAlloc(from->shape, from->ndim, from->dtype.code, from->dtype.bits,
-                    from->dtype.lanes, device_type, device_id, to);
-    }
-    TVMArrayCopyFromTo(const_cast<DLTensor*>(from), *to, nullptr);
-    return *to;
-  }
-  */
-
-  InputData * CreateCopyFrom(const DLTensor* fromData, const Dependent &fromDep,
-                             InputData ** to, int device_type, int device_id) {
+  InputData* CreateCopyFrom(const DLTensor* fromData, const Dependent& fromDep, InputData** to,
+                            int device_type, int device_id) {
     if (!*to) {
       *to = new InputData;
     }
@@ -259,21 +227,21 @@ void FreeData() {
   }
 
  public:
-  void ExportAppendData(vector<shared_ptr<OutputData>> *outputs) {
-      for (size_t i = 0; i < num; i++) {
-        shared_ptr<OutputData> var = make_shared<OutputData>(inputList[i]);
-        outputs->push_back(var);
-      }
-      return;
+  void ExportAppendData(vector<shared_ptr<OutputData>>* outputs) {
+    for (size_t i = 0; i < num; i++) {
+      shared_ptr<OutputData> var = make_shared<OutputData>(inputList[i]);
+      outputs->push_back(var);
+    }
+    return;
   }
 
-  void Copy(const vector<InputData*>& dlInput, int device_type , int device_id) {
+  void Copy(const vector<InputData*>& dlInput, int device_type, int device_id) {
     num = dlInput.size();
     ResetDataList(num);
 
     for (size_t i = 0; i < num; i++) {
-      CreateCopyFrom(dlInput[i]->data, dlInput[i]->dependent,
-                     &inputList[i], device_type, device_id);
+      CreateCopyFrom(dlInput[i]->data, dlInput[i]->dependent, &inputList[i], device_type,
+                     device_id);
     }
     return;
   }
@@ -283,61 +251,19 @@ void FreeData() {
     ResetDataList(num);
 
     for (size_t i = 0; i < num; i++) {
-      CreateCopyFrom(dlOutput->at(i)->dltensor, dlOutput->at(i)->dependent,
-                     &inputList[i], device_type, device_id);
-    }
-    return;
-  }
-
-  /*
-  void Copy(const Array<NDArray>& dlArray, int device_type, int device_id) {
-    num = dlArray.size();
-    ResetDataList(num);
-
-    for (size_t i = 0; i < num; i++) {
-      CreateCopyFrom(const_cast<const DLTensor*>(dlArray[i].operator->()), &dataList[i],
+      CreateCopyFrom(dlOutput->at(i)->dltensor, dlOutput->at(i)->dependent, &inputList[i],
                      device_type, device_id);
     }
     return;
   }
 
-  void Copy(const DLTensor* dlTensor, int device_type, int device_id) {
-    num = 1;
-    ResetDataList(num);
-    CreateCopyFrom(dlTensor, &dataList[0], device_type, device_id);
-    return;
-  }
-
-  void Copy(const vector<const DLTensor*>& dlTensors, int device_type, int device_id) {
-    num = dlTensors.size();
-    ResetDataList(num);
-
-    for (size_t i = 0; i < num; i++) {
-      CreateCopyFrom(dlTensors[i], &dataList[i], device_type, device_id);
-    }
-    return;
-  }
-
-  void Copy(DLTensor** dlTensors, size_t dlNum, int device_type, int device_id) {
-    num = dlNum;
-    ResetDataList(num);
-
-    for (size_t i = 0; i < num; i++) {
-      auto dlTensor = const_cast<DLTensor*>(dlTensors[i]);
-      CreateCopyFrom(dlTensor, &dataList[i], device_type, device_id);
-    }
-    return;
-  }
-  */
   size_t num;
   size_t max_num;
-  //DLTensor** dataList;
   InputData** inputList;
 
   TControl controlData;
-  //PipelineData(void) : num(0), max_num(0), dataList(nullptr) {}
   PipelineData(void) : num(0), max_num(0), inputList(nullptr) {}
-  ~PipelineData(void){ FreeData();}
+  ~PipelineData(void) { FreeData(); }
 };
 
 template <int device_type = kDLCPU, int device_id = 0>
@@ -346,34 +272,11 @@ class slot_t {
   bool bExit = false;
   PipelineData data;
   slot_t(void) {}
-  /*
-  // overwrite operator = to handle "(slot) s = (OutputData) d;"
-  slot_t<device_type, device_id>& operator=(const DLTensor* dlTensor) {
-    data.Copy(dlTensor, device_type, device_id);
-    return *this;
-  }
-
-  slot_t<device_type, device_id>& operator=(const vector<const DLTensor*> dlTensors) {
-    data.Copy(dlTensors, device_type, device_id);
-    return *this;
-  }
-
-  slot_t<device_type, device_id>& operator=(const Array<NDArray> dlTensors) {
-    data.Copy(dlTensors, device_type, device_id);
-    return *this;
-  }
-  */
 
   slot_t<device_type, device_id>& operator=(const vector<shared_ptr<OutputData>>* outputData) {
     data.Copy(outputData, device_type, device_id);
     return *this;
   }
-  /*
-  slot_t<device_type, device_id>& operator=(const slot_t<device_type, device_id>& slot) {
-    data.Copy(slot.data.dataList, slot.data.num, device_type, device_id);
-    return *this;
-  }
-  */
 };
 
 template <int device_type = kDLCPU, int device_id = 0>
@@ -382,12 +285,12 @@ class pipelineOutputData {
   explicit pipelineOutputData(vector<NDArray>* datas) : datas_(datas) { ; }
   pipelineOutputData& operator=(const slot_t<device_type, device_id>& slot) {
     assert(datas_->size() >= slot.data.num);
-    unordered_map<int, DLTensor *> dataMap;
+    unordered_map<int, DLTensor*> dataMap;
     /* output may not ordered by index in slot, use a map to index them.
      */
     for (size_t i = 0; i < slot.data.num; i++) {
       auto dlTensor = slot.data.inputList[i]->data;
-      int outputIndx = slot.data.inputList[i]->dependent.GetOutputIndx() -1;
+      int outputIndx = slot.data.inputList[i]->dependent.GetOutputIndx() - 1;
       assert(outputIndx < slot.data.num);
       dataMap[outputIndx] = dlTensor;
     }
@@ -397,18 +300,18 @@ class pipelineOutputData {
       /* alloc NDArray if there is no NDArray Allocated in vector
        */
       if (datas_->size() < i + 1) {
-          /* allocated NDArray
-           */
-          vector<int64_t> shape;
-          for (int i = 0; i < dlTensor->ndim; i++) {
-            shape.push_back(dlTensor->shape[i]);
-          }
-          auto ndarray = NDArray::Empty(shape, dlTensor->dtype, dlTensor->device);
-          ndarray.CreateView(shape, dlTensor->dtype);
+        /* allocated NDArray
+         */
+        vector<int64_t> shape;
+        for (int i = 0; i < dlTensor->ndim; i++) {
+          shape.push_back(dlTensor->shape[i]);
+        }
+        auto ndarray = NDArray::Empty(shape, dlTensor->dtype, dlTensor->device);
+        ndarray.CreateView(shape, dlTensor->dtype);
 
-          /* push into NDArray vector
-          */
-          datas_->push_back(ndarray);
+        /* push into NDArray vector
+         */
+        datas_->push_back(ndarray);
       }
       datas_->at(i).CopyFrom(dlTensor);
     }
@@ -539,7 +442,7 @@ class RuntimeData {
     return;
   }
 
-  void ImportPipelineData(InputData **data, size_t inputsLen) {
+  void ImportPipelineData(InputData** data, size_t inputsLen) {
     assert(runtimePtr->NumInputs() >= inputsLen);
     vector<InputData*> forwardDatas;
     for (size_t i = 0; i < inputsLen; i++) {
@@ -555,7 +458,8 @@ class RuntimeData {
         data[i]->dependent.RemoveDependentRef(runtimeIndx);
       }
 
-      // save these data that need forwarding to next runtime
+      /* save these data that need forwarding to next runtime.
+       */
       if (data[i]->dependent.NeedForward()) {
         forwardDatas.push_back(data[i]);
       }
@@ -577,17 +481,10 @@ class RuntimeData {
   }
 
   RuntimeData& operator=(const SLOT& slot) {
-    //ImportData<DLTensor**>(slot.data.dataList, slot.data.num);
     ImportPipelineData(slot.data.inputList, slot.data.num);
 
     return *this;
   }
-  /*
-  RuntimeData& operator=(vector<DLTensor*> dlTensors) {
-    ImportData(dlTensors, dlTensors.size());
-    return *this;
-  }
-  */
 };
 
 class RuntimeItem {
@@ -603,7 +500,7 @@ class RuntimeItem {
   QUEUE* queue = nullptr;
   thread t;
   shared_ptr<RuntimeFunction> runtimePtr = nullptr;
-  RuntimeItem(Module mod, QUEUE* inputQueue, RUNTIME_PIPELINE_OUTPUT_CONF *pconfig, int indx) {
+  RuntimeItem(Module mod, QUEUE* inputQueue, RUNTIME_PIPELINE_OUTPUT_CONF* pconfig, int indx) {
     if (runtimePtr == nullptr) {
       runtimePtr = make_shared<RuntimeFunction>(mod);
       inputsNum = runtimePtr->NumOutputs();
@@ -656,12 +553,11 @@ class RuntimeItem {
     return outputs;
   }
 
-  void GetOutput2(vector<shared_ptr<OutputData>> *outputs) {
+  void GetOutput2(vector<shared_ptr<OutputData>>* outputs) {
     size_t outputsNum = runtimePtr->NumOutputs();
     for (size_t i = 0; i < outputsNum; i++) {
-      shared_ptr<OutputData> output = make_shared<OutputData>(runtimePtr->GetOutput(i),
-                        i + 1,
-                        runtime_pipeline_output_conf);
+      shared_ptr<OutputData> output =
+          make_shared<OutputData>(runtimePtr->GetOutput(i), i + 1, runtime_pipeline_output_conf);
 
       outputs->push_back(output);
     }

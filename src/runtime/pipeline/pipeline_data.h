@@ -61,28 +61,13 @@ void q_push(squeue<SLOT_TYPE>* q, const VARIABLE_TYPE& s) {
 }
 
 template <typename SLOT_TYPE = SLOT, typename VARIABLE_TYPE = SLOT>
-inline bool q_poll_top_half(squeue<SLOT_TYPE>* q, VARIABLE_TYPE* s) {
+bool q_poll(squeue<SLOT_TYPE>* q, VARIABLE_TYPE* s) {
   if (empty(q)) return false;
   *s = q->q[q->head];
-  return true;
-}
-
-template <typename SLOT_TYPE = SLOT>
-inline bool q_poll_bottom_half(squeue<SLOT_TYPE>* q) {
+  read_barrier();
   q->head = (q->head + 1) % q->len;
   return true;
 }
-
-template <typename SLOT_TYPE = SLOT, typename VARIABLE_TYPE = SLOT>
-bool q_poll(squeue<SLOT_TYPE>* q, VARIABLE_TYPE* s) {
-  bool ret = q_poll_top_half<SLOT_TYPE, VARIABLE_TYPE>(q, s);
-  if (ret) {
-    read_barrier();
-    q_poll_bottom_half<SLOT_TYPE>(q);
-  }
-  return ret;
-}
-
 // extern "C"
 #endif
 

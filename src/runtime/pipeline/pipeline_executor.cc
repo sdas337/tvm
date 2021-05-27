@@ -37,33 +37,11 @@ void SubGraphRuntime::Run() { pipeline_run(runtimes); }
 
 void SubGraphRuntime::Init(const Array<tvm::runtime::Module>& modules,
                            const std::string& pipeline_json) {
-  cout <<"SubGraphRuntime::Init" << pipeline_json <<endl;
-  //string tmp = "{\"mod1\":1\n}";
   std::istringstream is(pipeline_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
   pipeline_init(modules, &runtimes, &pipeline_conf);
-  SetupStorage();
   return;
-}
-
-void SubGraphRuntime::SetupStorage(void) {
-  /*
-  auto lastGraphRuntime = runtimes.back();
-  int outputNum = lastGraphRuntime->runtimePtr->NumOutputs();
-  for (int i = 0; i < outputNum; i++) {
-    NDArray array = lastGraphRuntime->runtimePtr->GetOutput(i);
-    auto dltensor = const_cast<DLTensor*>(array.operator->());
-    vector<int64_t> shape;
-    for (int i = 0; i < dltensor->ndim; i++) {
-      shape.push_back(dltensor->shape[i]);
-    }
-
-    auto ndarray = NDArray::Empty(shape, dltensor->dtype, dltensor->device);
-    ndarray.CreateView(shape, dltensor->dtype);
-    output_entry_.push_back(ndarray);
-  }
-  */
 }
 
 /*!
