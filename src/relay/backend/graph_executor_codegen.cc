@@ -193,7 +193,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     auto storage_info = memory_plan_->expr_to_storage_info[e];
     return storage_info;
   }
-
+  
   LoweredOutput Codegen(relay::Function func, String mod_name) {
     mod_name_ = mod_name;
 
@@ -207,7 +207,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     // to instead explicitly lowering the incoming IRModule, and then
     // performing the preexisting graph executor code generation phase.
     IRModule mod = IRModule::FromExpr(func);
-
+    tvm::transform::PrintIR()(mod);
     // Build a map from each operation to device.
     tec::DeviceMap device_context_map;
     for (const auto& it : memory_plan_->expr_to_storage_info) {
@@ -236,10 +236,22 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         });
 
+    for(auto x : lowered_module.per_target_module) {
+      std::cout << x.first << std::endl;
+      std::cout << __FUNCTION__ << " " << __LINE__ << std::endl;
+      tvm::transform::PrintIR()(x.second);
+      
+    }
+
     function_metadata_.Set(runtime::symbol::tvm_module_main, lowered_module.main_func_info);
     auto main_module = lowered_module.main_module;
+    std::cout << __FUNCTION__ << " " << __LINE__ << std::endl;
+    tvm::transform::PrintIR()(main_module);
     main_module = relay::transform::InferType()(main_module);
     relay::Function main_func = Downcast<relay::Function>(main_module->Lookup("main"));
+
+    std::cout << __FUNCTION__ << " " << __LINE__ << std::endl;
+    tvm::transform::PrintIR()(main_module);
 
     // Now that we have lowered all operators to TIR code, we can proceed with compilation.
     //

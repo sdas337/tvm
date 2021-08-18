@@ -365,6 +365,7 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
 }
 
 runtime::Module BuildCHost(IRModule mod, Target target) {
+  tvm::transform::PrintIR()(mod);
   using tvm::runtime::Registry;
   bool output_ssa = false;
   bool emit_asserts = false;

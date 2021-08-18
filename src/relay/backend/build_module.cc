@@ -466,6 +466,8 @@ class RelayBuildModule : public runtime::ModuleNode {
   void BuildRelay(IRModule relay_module,
                   const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
                   const String mod_name) {
+    tvm::transform::PrintIR()(relay_module);
+
     Target target_host = GetTargetHost();
     // If no target_host has been set, we choose a default one, which is
     // llvm if "codegen.LLVMModuleCreate" is accessible.
@@ -477,6 +479,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Relay IRModule -> IRModule optimizations.
     relay_module = Optimize(relay_module, targets_, params);
+    tvm::transform::PrintIR()(relay_module);
 
     // Get the updated function.
     auto func = Downcast<Function>(relay_module->Lookup("main"));
@@ -495,6 +498,9 @@ class RelayBuildModule : public runtime::ModuleNode {
       lowered_funcs.Set("ext_dev", IRModule());
     }
 
+    for (const auto& it : lowered_funcs) {
+      tvm::transform::PrintIR()(it.second);
+    }
     // Generate a placeholder function that attaches linked params as its arguments.
     if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {
       CHECK(pf != nullptr) << "Unable to link-params with no target_host and no llvm codegen.";

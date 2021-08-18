@@ -46,6 +46,7 @@ runtime::Module Build(IRModule mod, Target target) {
           .value()) {
     mod = tir::transform::SkipAssert()(mod);
   }
+  tvm::transform::PrintIR()(mod);
 
   // the build function.
   std::string build_f_name = "target.build." + target->kind->name;

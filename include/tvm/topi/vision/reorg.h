@@ -51,6 +51,7 @@ using namespace tvm::te;
  */
 inline Tensor reorg(const Tensor& data, int stride = 1, std::string name = "tensor",
                     std::string tag = "reorg_output") {
+  std::cout << __FUNCTION__ << " " << __LINE__ << " " << "reorg "<< std::endl;
   auto input_shape = data->shape;
 
   int batch = GetConstInt(input_shape[0]);

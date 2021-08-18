@@ -99,7 +99,9 @@ class TECompilerImpl : public TECompilerNode {
         lowered_functions.Set(target->str(), IRModule(Map<GlobalVar, BaseFunc>({})));
       }
 
+      std::cout << __FUNCTION__ << " end " << std::endl;
       lowered_functions[target->str()]->Update(lowered_func->cached_func->funcs);
+      std::cout << __FUNCTION__ << " end " << std::endl;
     }
     return lowered_functions;
   }
@@ -664,6 +666,7 @@ void UpdateFunctionMetadata(Function relay_func,
 LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap device_context_map,
                       backend::StaticMemoryPlan memory_plan, const String& module_name,
                       std::function<void(Function)> process_fn) {
+  std::cout << __FUNCTION__ << std::endl;
   TECompiler compiler;
 
   CHECK_EQ(module->functions.size(), 1)
@@ -677,11 +680,14 @@ LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap devic
       },
       0, "LowerTensorExpr", {});
 
+  std::cout << __FUNCTION__ << std::endl;
   // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
   backend::FunctionInfo func_info =
       UpdateMainWorkspaceSize(module, targets, memory_plan->expr_to_storage_info);
 
   auto updated_module = pass(module);
+  
+  std::cout << __FUNCTION__ << std::endl;
 
   // A temporary solution until we can rewrite the auto-scheduler task extraction code to work
   // in a more reasonable way.
@@ -700,6 +706,7 @@ LoweredModule LowerTE(const IRModule& module, TargetMap targets, DeviceMap devic
 
     (*te_compiler_update_weights)(weight_map);
   }
+  std::cout << __FUNCTION__ << std::endl;
 
   LoweredModule lowered_module;
   lowered_module.main_module = updated_module;
