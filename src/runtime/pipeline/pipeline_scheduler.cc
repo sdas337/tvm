@@ -17,7 +17,7 @@
  * under the License.
  */
 #include "pipeline_scheduler.h"
-
+#include "pipeline_data.h"//
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -47,6 +47,9 @@ std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
     NDArray output = runtimes[output_pair.first]->CreateFromOutput(output_pair.second);
     output_array.push_back(output);
   }
+  //remove me
+  test();
+  //remove me end
   return runtimes;
 }
 

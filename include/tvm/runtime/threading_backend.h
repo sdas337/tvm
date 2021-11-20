@@ -64,6 +64,7 @@ class ThreadGroup {
   enum AffinityMode : int {
     kBig = 1,
     kLittle = -1,
+    kSpecify = -2,
   };
 
   /*!
@@ -78,7 +79,9 @@ class ThreadGroup {
    *
    * \return The number of workers to use.
    */
-  int Configure(AffinityMode mode, int nthreads, bool exclude_worker0);
+  int Configure(
+      AffinityMode mode, int nthreads, std::vector<unsigned int> cpus,  bool exclude_worker0
+  );
 
  private:
   Impl* impl_;
@@ -94,6 +97,8 @@ void Yield();
  */
 int MaxConcurrency();
 
+void SetMaxConcurrency(int value);
+
 /*!
  * \brief Reset the threads in the pool. All current threads are destroyed and
  * new ones are created.
@@ -101,6 +106,11 @@ int MaxConcurrency();
  * Note that this does nothing when openmp is used.
  */
 void ResetThreadPool();
+
+void Configure(
+    threading::ThreadGroup::AffinityMode mode, int nthreads, std::vector<unsigned int> cpus,
+    int max_concurrency
+);
 
 }  // namespace threading
 }  // namespace runtime
