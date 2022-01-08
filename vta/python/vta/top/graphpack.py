@@ -56,10 +56,15 @@ def _pack_batch_channel(data, dshape, bfactor, cfactor):
     return data
 
 
-def _unpack_batch_channel(data, old_shape, unpack_transpose=False):
+def _unpack_batch_channel(data, old_shape, unpack_transpose=False, cfactor=0):
     """Unpack the data channel dimension."""
     if unpack_transpose:
         data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
+    # check and remove pad data.
+    pad, _= _channel_const_match(old_shape[1], cfactor)
+    if pad != 0:
+        new_pad_width = [[0, 0], [0, 0], [0, 0], [0, -pad], [0, 0], [0, 0]]
+        data = op.nn.pad(data, pad_width=new_pad_width)
     data = op.reshape(data, newshape=old_shape)
     return data
 
@@ -309,6 +314,7 @@ class ExprPack(ExprMutator):
         self.pad = op.op.get("nn.pad")
         self.upsampling = op.op.get("nn.upsampling")
         self.reshape = op.op.get("reshape")
+        self.resize2d = op.op.get("image.resize2d")
         self.number_of_conv2d = 0
         self.unpack_transpose = True
         super().__init__()
@@ -330,8 +336,9 @@ class ExprPack(ExprMutator):
             if self.start_pack:
                 self.start_pack = False
                 data = args[0]
+                packed_data_shape = _to_shape(input_types[0].shape)
                 data_shape = _get_tensor_shape(call.args[0])
-                return _unpack_batch_channel(data, data_shape, self.unpack_transpose)
+                return _unpack_batch_channel(data, data_shape, self.unpack_transpose, self.cfactor)
         if self.start_pack:
             # Operator cases
             if call.op == self.conv2d and odtype == "int32":
@@ -455,6 +462,26 @@ class ExprPack(ExprMutator):
                 method = call.attrs.method
                 align_corners = call.attrs.align_corners
                 return op.nn.upsampling(data, scale_h, scale_w, data_layout, method, align_corners)
+            elif call.op == self.resize2d:
+                (data,) = args
+                size = call.attrs.size
+                roi = call.attrs.roi
+                data_layout = "%s%dn%dc" % (call.attrs.layout, self.bfactor, self.cfactor)
+                method=call.attrs.method
+                coordinate_transformation_mode=call.attrs.coordinate_transformation_mode
+                rounding_method=call.attrs.rounding_method
+                cubic_alpha=call.attrs.cubic_alpha
+                cubic_exclude=call.attrs.cubic_exclude
+                extrapolation_value=call.attrs.extrapolation_value
+                out_dtype=call.attrs.out_dtype
+                return op.image.resize2d(data, size, roi, data_layout, method, 
+                        coordinate_transformation_mode,
+                        rounding_method,
+                        cubic_alpha,
+                        cubic_exclude,
+                        extrapolation_value,
+                        out_dtype)
+
             elif call.op == self.reshape and len(input_types[0].shape) == 4:
                 (data,) = args
                 self.unpack_transpose = False
